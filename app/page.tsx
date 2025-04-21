@@ -150,3 +150,44 @@ export default function ImageGeneratorPage() {
     </div>
   )
 }
+import { CldUploadWidget } from "next-cloudinary";    // yarn add next-cloudinary
+import JSZip from "jszip";                            // yarn add jszip
+...
+// 上传原图
+<CldUploadWidget cloudName={process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD}
+  uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_PRESET}
+  onUpload={(r)=> setSrc(r.secure_url)} >
+  {({open})=> <Button onClick={()=>open()}>上传图片</Button>}
+</CldUploadWidget>
+
+// 生成按钮
+const handleGenerate = async()=>{
+  const res = await fetch("/api/generate",{method:"POST",body:JSON.stringify({
+     imageUrl: src, style: stylePrompt
+  })});
+  const {url} = await res.json();
+  const pieces = await sliceNine(url);   // ↓↓↓
+  setPieces(pieces);
+}
+
+// 九宫格函数
+const sliceNine = async (src:string)=>{
+  const img=await createImageBitmap(await fetch(src).then(r=>r.blob()));
+  const s=img.width/3, cvs=document.createElement("canvas");
+  cvs.width=cvs.height=s; const ctx=cvs.getContext("2d")!;
+  const out:string[]=[];
+  for(let y=0;y<3;y++)for(let x=0;x<3;x++){
+    ctx.clearRect(0,0,s,s);
+    ctx.drawImage(img,x*s,y*s,s,s,0,0,s,s);
+    out.push(cvs.toDataURL("image/png"));
+  }
+  return out;
+}                                                // :contentReference[oaicite:12]{index=12}
+
+// 下载九图
+const downloadAll = async()=>{
+  const zip = new JSZip();
+  pieces.forEach((p,i)=> zip.file(`sticker_${i+1}.png`, p.split(",")[1], {base64:true}));
+  const blob = await zip.generateAsync({type:"blob"});
+  saveAs(blob,"stickers.zip");                 // yarn add file-saver
+}
